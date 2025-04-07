@@ -1,5 +1,6 @@
 import pygame
 import random
+import os
 
 pygame.init()
 
@@ -21,17 +22,17 @@ class Colors:
     PURPLE = (128, 0, 128)
     RED = (255, 0, 0)
     BLACK = (0, 0, 0)
-    DARK_PURPLE = (73, 8, 150)
+    GRAY = (40, 40, 40)
 
 class Shapes:
     SHAPES = [
-        [[1, 1, 1], [0, 1, 0]],  # T-shape
-        [[1, 1], [1, 1]],        # O-shape
-        [[0, 1, 1], [1, 1, 0]],  # S-shape
-        [[1, 0, 0], [1, 1, 1]],  # L-shape
-        [[0, 0, 1], [1, 1, 1]],  # J-shape
-        [[1, 1, 0], [0, 1, 1]],  # Z-shape
-        [[1, 1, 1, 1]]           # I-shape
+        [[1, 1, 1], [0, 1, 0]],
+        [[1, 1], [1, 1]],
+        [[0, 1, 1], [1, 1, 0]],
+        [[1, 0, 0], [1, 1, 1]],
+        [[0, 0, 1], [1, 1, 1]],
+        [[1, 1, 0], [0, 1, 1]],
+        [[1, 1, 1, 1]]
     ]
 
     SHAPES_COLORS = [Colors.CYAN, Colors.BLUE, Colors.ORANGE, Colors.YELLOW, Colors.GREEN, Colors.PURPLE, Colors.RED]
@@ -42,32 +43,9 @@ class Shapes:
         color = random.choice(Shapes.SHAPES_COLORS)
         return shape, color
 
-    def clear_lines(self):
-        full_lines = []
-        for i, row in enumerate(self.board):
-            if all(cell != Colors.BLACK for cell in row):
-                full_lines.append(i)
-
-        for i in full_lines:
-            del self.board[i]
-            self.board.insert(0, [Colors.BLACK] * COLUMNS)
-
-        return len(full_lines)
-
-    def draw(self):
-        for i, row in enumerate(self.board):
-            for j, cell in enumerate(row):
-                if cell != Colors.BLACK:
-                    pygame.draw.rect(
-                        screen, cell,
-                        (j * BLOCK_SIZE, i * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE)
-                    )
-
 class GameField:
     def __init__(self):
-        self.board = []
-        for i in range(ROWS):
-            self.board.append([Colors.BLACK] * COLUMNS)
+        self.board = [[Colors.BLACK] * COLUMNS for _ in range(ROWS)]
 
     def clear_lines(self):
         full_lines = []
@@ -85,10 +63,15 @@ class GameField:
         for i, row in enumerate(self.board):
             for j, cell in enumerate(row):
                 if cell != Colors.BLACK:
-                    pygame.draw.rect(
-                        screen, cell,
-                        (j * BLOCK_SIZE, i * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE)
-                    )
+                    pygame.draw.rect(screen, cell, (j * BLOCK_SIZE, i * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE))
+                    pygame.draw.rect(screen, Colors.BLACK, (j * BLOCK_SIZE, i * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE), 1)
+
+# Čtverečkované pozadí
+def draw_grid():
+    for x in range(0, SCREEN_WIDTH, BLOCK_SIZE):
+        pygame.draw.line(screen, Colors.GRAY, (x, 0), (x, SCREEN_HEIGHT))
+    for y in range(0, SCREEN_HEIGHT, BLOCK_SIZE):
+        pygame.draw.line(screen, Colors.GRAY, (0, y), (SCREEN_WIDTH, y))
 
 class Tetris:
     def __init__(self, game_field, score):
@@ -98,13 +81,13 @@ class Tetris:
         self.x = COLUMNS // 2 - len(self.current_piece[0]) // 2
         self.y = 0
         self.game_over = False
+        self.combo = 0
 
     def rotate_piece(self):
         shape, color = self.current_piece
         original_shape = shape
         new_shape = [list(row) for row in zip(*shape[::-1])]
         self.current_piece = (new_shape, color)
-
         if self.check_collision(0, 0):
             self.current_piece = (original_shape, color)
 
@@ -122,13 +105,19 @@ class Tetris:
         return False
 
     def place_piece(self):
-        self.score.add_placement()  # přidá 10 bodů za položení
         for i, row in enumerate(self.current_piece[0]):
             for j, cell in enumerate(row):
                 if cell:
                     self.game_field.board[self.y + i][self.x + j] = self.current_piece[1]
+
+        self.score.add_placement()
         lines_cleared = self.game_field.clear_lines()
-        self.score.add_score(lines_cleared)
+        if lines_cleared > 0:
+            self.combo += 1
+        else:
+            self.combo = 0
+
+        self.score.add_score(lines_cleared, self.combo)
 
     def drop(self):
         while not self.check_collision(0, 1):
@@ -163,56 +152,58 @@ class Tetris:
         for i, row in enumerate(self.current_piece[0]):
             for j, cell in enumerate(row):
                 if cell:
-                    pygame.draw.rect(
-                        screen, self.current_piece[1],
-                        ((self.x + j) * BLOCK_SIZE, (self.y + i) * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE)
-                    )
+                    x = (self.x + j) * BLOCK_SIZE
+                    y = (self.y + i) * BLOCK_SIZE
+                    pygame.draw.rect(screen, self.current_piece[1], (x, y, BLOCK_SIZE, BLOCK_SIZE))
+                    pygame.draw.rect(screen, Colors.BLACK, (x, y, BLOCK_SIZE, BLOCK_SIZE), 1)
 
 class Score:
     def __init__(self):
         self.score = 0
-        self.streak = 0
 
     def add_placement(self):
         self.score += 10
 
-    def add_score(self, lines_cleared):
+    def add_score(self, lines_cleared, combo):
         if lines_cleared > 0:
-            bonus = 0
-            if self.streak > 0:
-                bonus = 50 * lines_cleared
-            self.score += lines_cleared * 100 + bonus
-            self.streak += 1
-        else:
-            self.streak = 0
+            self.score += lines_cleared * 100
+            if combo > 1:
+                self.score += (combo - 1) * 50
 
     def draw(self):
-        font = pygame.font.Font(None, 50)
+        font = pygame.font.Font(None, 36)
         score_text = font.render(f"Score: {self.score}", True, Colors.WHITE)
         screen.blit(score_text, (10, 10))
 
 class HighScore:
-    def __init__(self):
-        self.high_score = self.load_high_score()
+    def __init__(self, path="highscore.txt"):
+        self.path = path
+        self.high_score = self.load()
 
-    def load_high_score(self):
-        try:
-            with open("highscore.txt", "r") as f:
-                return int(f.read())
-        except:
-            return 0
+    def load(self):
+        if os.path.exists(self.path):
+            with open(self.path, "r") as f:
+                try:
+                    return int(f.read())
+                except:
+                    return 0
+        return 0
 
-    def save_high_score(self, current_score):
+    def save(self):
+        with open(self.path, "w") as f:
+            f.write(str(self.high_score))
+
+    def update(self, current_score):
         if current_score > self.high_score:
             self.high_score = current_score
-            with open("highscore.txt", "w") as f:
-                f.write(str(self.high_score))
+            self.save()
 
     def draw(self):
-        font = pygame.font.Font(None, 40)
-        high_score_text = font.render(f"High Score: {self.high_score}", True, Colors.WHITE)
-        screen.blit(high_score_text, (10, 60))
+        font = pygame.font.Font(None, 36)
+        high_text = font.render(f"High Score: {self.high_score}", True, Colors.WHITE)
+        screen.blit(high_text, (10, 50))
 
+# Hra
 class Game:
     def __init__(self):
         self.game_field = GameField()
@@ -236,30 +227,26 @@ class Game:
                         self.tetris.move_down()
                     if event.key == pygame.K_UP:
                         self.tetris.rotate_piece()
-                    if event.key == pygame.K_SPACE:
-                        self.tetris.drop()
 
             self.tetris.move_down()
 
             screen.fill(Colors.BLACK)
+            draw_grid()
             self.game_field.draw()
             self.tetris.draw()
             self.score.draw()
+            self.high_score.update(self.score.score)
             self.high_score.draw()
 
             pygame.display.flip()
 
-        self.high_score.save_high_score(self.score.score)
-
         font = pygame.font.Font(None, 74)
         text = font.render("Game Over", True, Colors.WHITE)
         text_rect = text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
-
         screen.fill(Colors.BLACK)
         screen.blit(text, text_rect)
         pygame.display.flip()
-
-        pygame.time.wait(500)
+        pygame.time.wait(2000)
         pygame.quit()
 
 if __name__ == "__main__":
