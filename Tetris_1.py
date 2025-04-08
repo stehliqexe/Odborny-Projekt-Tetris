@@ -27,6 +27,7 @@ class Colors:
     DARK_PURPLE = (73, 8, 150)
     GRAY = (40, 40, 40)
 
+
 class Shapes:
     SHAPES = [
         [[1, 1, 1], [0, 1, 0]],  # T-shape
@@ -68,6 +69,13 @@ class Shapes:
                     )
 
 
+def draw_grid():
+    for x in range(0, SCREEN_WIDTH, BLOCK_SIZE):
+        pygame.draw.line(screen, Colors.GRAY, (x, 0), (x, SCREEN_HEIGHT))
+    for y in range(0, SCREEN_HEIGHT, BLOCK_SIZE):
+        pygame.draw.line(screen, Colors.GRAY, (0, y), (SCREEN_WIDTH, y))
+
+
 class GameField:
     def __init__(self):
         self.board = []
@@ -95,11 +103,6 @@ class GameField:
                         (j * BLOCK_SIZE, i * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE)
                     )
 
-def draw_grid():
-    for x in range(0, SCREEN_WIDTH, BLOCK_SIZE):
-        pygame.draw.line(screen, Colors.GRAY, (x, 0), (x, SCREEN_HEIGHT))
-    for y in range(0, SCREEN_HEIGHT, BLOCK_SIZE):
-        pygame.draw.line(screen, Colors.GRAY, (0, y), (SCREEN_WIDTH, y))
 
 class Tetris:
     def __init__(self, game_field, score):
@@ -350,7 +353,8 @@ class Menu:
             # Draw instructions
             controls = [
                 "CONTROLS:",
-                "↑ ↓ - Navigate",
+                "Key_UP, Key_DOWN - Navigate",
+                'Key_LEFT, Key_RIGHT - Rotate',
                 "ENTER - Select",
                 "ESC - Back"
             ]
@@ -467,6 +471,7 @@ class Game:
         pygame.time.wait(500)
         pygame.quit()
 
+
 class FallingShape:
     def __init__(self):
         self.shape, self.color = Shapes.new_piece()
@@ -483,6 +488,7 @@ class FallingShape:
                     rect = pygame.Rect((self.x + j) * BLOCK_SIZE, (self.y + i) * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE)
                     pygame.draw.rect(screen, self.color, rect)
                     pygame.draw.rect(screen, Colors.BLACK, rect, 1)  # square outline
+
 
 falling_shapes = []
 falling_positions = set()
@@ -536,42 +542,196 @@ def draw_grid():
 def draw_text_center(text, size, color, y_offset=0):
     font = pygame.font.SysFont("comicsans", size, bold=True)
     label = font.render(text, True, color)
-    screen.blit(label, (SCREEN_WIDTH // 2 - label.get_width() // 2, SCREEN_HEIGHT // 2 - label.get_height() // 2 + y_offset))
+    screen.blit(label,
+                (SCREEN_WIDTH // 2 - label.get_width() // 2, SCREEN_HEIGHT // 2 - label.get_height() // 2 + y_offset))
 
 
-def main_menu():
-    clock = pygame.time.Clock()
-    spawn_timer = 0
+# Add this new class for the Game Over screen
+class GameOverScreen:
+    def __init__(self, score, high_score):
+        self.score = score
+        self.high_score = high_score
+        self.font_large = pygame.font.Font(None, 72)
+        self.font_medium = pygame.font.Font(None, 48)
+        self.font_small = pygame.font.Font(None, 36)
+        self.selected_option = 0  # 0 for view high scores, 1 for restart
+        self.new_high_score = score > high_score.high_score
 
-    running = True
-    while running:
-        screen.fill(Colors.DARK_PURPLE)
+    def draw(self, screen):
+        # Dark semi-transparent background
+        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 200))
+        screen.blit(overlay, (0, 0))
 
-        draw_grid()
+        # Game Over text
+        game_over_text = self.font_large.render("GAME OVER", True, Colors.RED)
+        screen.blit(game_over_text, (SCREEN_WIDTH // 2 - game_over_text.get_width() // 2, 100))
 
-        # Update and draw falling shapes
-        spawn_timer += clock.get_rawtime()
-        if spawn_timer > 500:
-            spawn_falling_shape()
-            spawn_timer = 0
+        # Score display
+        score_text = self.font_medium.render(f"Your Score: {self.score}", True, Colors.WHITE)
+        screen.blit(score_text, (SCREEN_WIDTH // 2 - score_text.get_width() // 2, 200))
 
-        update_falling_shapes()
-        for shape in falling_shapes:
-            shape.draw()
+        # High score indication if applicable
+        if self.new_high_score:
+            new_high_text = self.font_small.render("NEW HIGH SCORE!", True, Colors.YELLOW)
+            screen.blit(new_high_text, (SCREEN_WIDTH // 2 - new_high_text.get_width() // 2, 250))
 
-        draw_text_center("TETRIS", 48, Colors.WHITE, -100)
-        draw_text_center("Press any key to start", 24, Colors.WHITE, 50)
+        # Options
+        view_text = "VIEW HIGH SCORES"
+        restart_text = "PLAY AGAIN"
 
-        pygame.display.update()
+        # Draw view high scores option
+        view_color = Colors.YELLOW if self.selected_option == 0 else Colors.WHITE
+        view_render = self.font_medium.render(view_text, True, view_color)
+        screen.blit(view_render, (SCREEN_WIDTH // 2 - view_render.get_width() // 2, 350))
 
+        # Draw restart option
+        restart_color = Colors.YELLOW if self.selected_option == 1 else Colors.WHITE
+        restart_render = self.font_medium.render(restart_text, True, restart_color)
+        screen.blit(restart_render, (SCREEN_WIDTH // 2 - restart_render.get_width() // 2, 420))
+
+        # Instructions
+        instructions = self.font_small.render("Use UP/DOWN to select, ENTER to confirm", True, Colors.GRAY)
+        screen.blit(instructions, (SCREEN_WIDTH // 2 - instructions.get_width() // 2, 500))
+
+    def handle_input(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
+                return "quit"
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_DOWN:
+                    self.selected_option = (self.selected_option + 1) % 2
+                elif event.key == pygame.K_UP:
+                    self.selected_option = (self.selected_option - 1) % 2
+                elif event.key == pygame.K_RETURN:
+                    if self.selected_option == 0:
+                        return "view_scores"
+                    else:
+                        return "restart"
+                elif event.key == pygame.K_ESCAPE:
+                    return "menu"
+        return "game_over"
+
+
+# Modify the Game class's run method to use the new GameOverScreen
+class Game:
+    def __init__(self):
+        self.game_field = GameField()
+        self.score = Score()
+        self.high_score = HighScore()
+        self.tetris = Tetris(self.game_field, self.score)
+        self.clock = pygame.time.Clock()
+
+    def run(self):
+        while not self.tetris.game_over:
+            self.clock.tick(5)
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self.tetris.game_over = True
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_LEFT:
+                        self.tetris.move_left()
+                    if event.key == pygame.K_RIGHT:
+                        self.tetris.move_right()
+                    if event.key == pygame.K_DOWN:
+                        self.tetris.move_down()
+                    if event.key == pygame.K_UP:
+                        self.tetris.rotate_piece()
+                    if event.key == pygame.K_SPACE:
+                        self.tetris.drop()
+
+            self.tetris.move_down()
+
+            screen.fill(Colors.BLACK)
+            draw_grid()
+            self.game_field.draw()
+            self.tetris.draw()
+            self.score.draw()
+            self.high_score.draw()
+
+            pygame.display.flip()
+
+        # Save high score and show game over screen
+        self.high_score.save_high_score(self.score.score)
+        game_over_screen = GameOverScreen(self.score.score, self.high_score)
+
+        while True:
+            action = game_over_screen.handle_input()
+
+            if action == "quit":
                 pygame.quit()
                 sys.exit()
-            if event.type == pygame.KEYDOWN:
-                running = False
+            elif action == "view_scores":
+                self.show_high_scores()
+            elif action == "restart":
+                return "restart"
+            elif action == "menu":
+                return "menu"
 
-        clock.tick(30)
+            screen.fill(Colors.BLACK)
+            game_over_screen.draw(screen)
+            pygame.display.flip()
+            self.clock.tick(60)
+
+    def show_high_scores(self):
+        # Create a simple high score display screen
+        clock = pygame.time.Clock()
+        showing_scores = True
+
+        while showing_scores:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+                if event.type == pygame.KEYDOWN:
+                    if event.key in (pygame.K_RETURN, pygame.K_ESCAPE):
+                        showing_scores = False
+
+            # Draw the high scores screen
+            screen.fill(Colors.BLACK)
+
+            # Title
+            font_large = pygame.font.Font(None, 72)
+            title = font_large.render("HIGH SCORES", True, Colors.YELLOW)
+            screen.blit(title, (SCREEN_WIDTH // 2 - title.get_width() // 2, 50))
+
+            # Current score
+            font_medium = pygame.font.Font(None, 48)
+            current_score = font_medium.render(f"Your Score: {self.score.score}", True, Colors.WHITE)
+            screen.blit(current_score, (SCREEN_WIDTH // 2 - current_score.get_width() // 2, 150))
+
+            # High score
+            high_score = font_medium.render(f"High Score: {self.high_score.high_score}", True, Colors.CYAN)
+            screen.blit(high_score, (SCREEN_WIDTH // 2 - high_score.get_width() // 2, 220))
+
+            # Instructions
+            font_small = pygame.font.Font(None, 36)
+            instructions = font_small.render("Press ENTER or ESC to continue", True, Colors.GRAY)
+            screen.blit(instructions, (SCREEN_WIDTH // 2 - instructions.get_width() // 2, 350))
+
+            pygame.display.flip()
+            clock.tick(60)
+ 
+# Modify the main function to handle the restart option
+def main():
+    pygame.init()
+    global screen
+    screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+    pygame.display.set_caption('Tetris')
+
+    while True:
+        menu_result = show_menu()
+
+        if menu_result == "start":
+            while True:
+                game_instance = Game()
+                result = game_instance.run()
+                if result == "menu":
+                    break
+                # If "restart", the loop will continue and create a new game
+        elif menu_result == "quit":
+            pygame.quit()
+            sys.exit()
 
 
 if __name__ == "__main__":
