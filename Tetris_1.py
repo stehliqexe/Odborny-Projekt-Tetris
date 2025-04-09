@@ -250,14 +250,6 @@ class Menu:
             self.last_animation_time = current_time
 
     def draw_title(self, screen):
-        # Draw glowing title effect
-        for i in range(3, 0, -1):
-            glow_color = (
-                min(255, self.title_color[0] + i * 30),
-                min(255, self.title_color[1] + i * 30),
-                min(255, self.title_color[2] + i * 30)
-            )
-
         # Main title
         title = self.title_font.render("TETRIS", True, self.title_color)
         screen.blit(title, (SCREEN_WIDTH // 2 - title.get_width() // 2, 30))
@@ -302,13 +294,6 @@ class Menu:
                     (SCREEN_WIDTH // 2 - 110, 185 + i * 60, 220, 50),
                     2
                 )
-                # Glow effect
-                for j in range(3, 0, -1):
-                    glow_text = self.option_font.render(option, True, (
-                        min(255, Colors.YELLOW[0] + j * 30),
-                        min(255, Colors.YELLOW[1] + j * 30),
-                        min(255, Colors.YELLOW[2] + j * 30)
-                    ))
 
             # Draw the option text
             text_color = Colors.YELLOW if i == self.selected_option else Colors.WHITE
@@ -440,16 +425,6 @@ class GameOverScreen:
             self.last_animation_time = current_time
 
     def draw_title(self, screen):
-        # Draw glowing title effect
-        for i in range(3, 0, -1):
-            glow_color = (
-                min(255, Colors.RED[0] + i * 30),
-                min(255, Colors.RED[1] + i * 30),
-                min(255, Colors.RED[2] + i * 30)
-            )
-            glow_text = self.title_font.render("GAME OVER", True, glow_color)
-            screen.blit(glow_text, (SCREEN_WIDTH // 2 - glow_text.get_width() // 2, 30 + i))
-
         # Main title
         title = self.title_font.render("GAME OVER", True, Colors.RED)
         screen.blit(title, (SCREEN_WIDTH // 2 - title.get_width() // 2, 30))
@@ -487,17 +462,6 @@ class GameOverScreen:
                     (SCREEN_WIDTH // 2 - 110, 220 + i * 60, 220, 50),
                     2
                 )
-                # Glow effect
-                for j in range(3, 0, -1):
-                    glow_text = self.option_font.render(option, True, (
-                        min(255, Colors.YELLOW[0] + j * 30),
-                        min(255, Colors.YELLOW[1] + j * 30),
-                        min(255, Colors.YELLOW[2] + j * 30)
-                    ))
-                    screen.blit(glow_text, (
-                        SCREEN_WIDTH // 2 - glow_text.get_width() // 2,
-                        225 + i * 60 - j
-                    ))
 
             # Draw the option text
             text_color = Colors.YELLOW if i == self.selected_option else Colors.WHITE
@@ -699,7 +663,6 @@ class Game:
             pygame.display.flip()
             clock.tick(60)
 
-
 # Modify the main function to handle the restart option
 def main():
     pygame.init()
@@ -720,7 +683,6 @@ def main():
         elif menu_result == "quit":
             pygame.quit()
             sys.exit()
-
 
 if __name__ == "__main__":
     main()
