@@ -229,7 +229,6 @@ class HighScore:
         high_score_text = font.render(f"High Score: {self.high_score}", True, Colors.WHITE)
         screen.blit(high_score_text, (10, 60))
 
-
 class Menu:
     def __init__(self):
         self.selected_option = 0
@@ -354,7 +353,7 @@ class Menu:
             controls = [
                 "CONTROLS:",
                 "Key_UP, Key_DOWN - Navigate",
-                'Key_LEFT, Key_RIGHT - Rotate',
+                'Key_LEFT, Key_RIGHT - Move',
                 "ENTER - Select",
                 "ESC - Back"
             ]
@@ -421,178 +420,110 @@ def main():
             sys.exit()
 
 
-class Game:
-    def __init__(self):
-        self.game_field = GameField()
-        self.score = Score()
-        self.high_score = HighScore()
-        self.tetris = Tetris(self.game_field, self.score)
-        self.clock = pygame.time.Clock()
-
-    def run(self):
-        while not self.tetris.game_over:
-            self.clock.tick(5)
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    self.tetris.game_over = True
-                if event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_LEFT:
-                        self.tetris.move_left()
-                    if event.key == pygame.K_RIGHT:
-                        self.tetris.move_right()
-                    if event.key == pygame.K_DOWN:
-                        self.tetris.move_down()
-                    if event.key == pygame.K_UP:
-                        self.tetris.rotate_piece()
-                    if event.key == pygame.K_SPACE:
-                        self.tetris.drop()
-
-            self.tetris.move_down()
-
-            screen.fill(Colors.BLACK)
-            draw_grid()
-            self.game_field.draw()
-            self.tetris.draw()
-            self.score.draw()
-            self.high_score.draw()
-
-            pygame.display.flip()
-
-        self.high_score.save_high_score(self.score.score)
-
-        font = pygame.font.Font(None, 74)
-        text = font.render("Game Over", True, Colors.WHITE)
-        text_rect = text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
-
-        screen.fill(Colors.BLACK)
-        screen.blit(text, text_rect)
-        pygame.display.flip()
-
-        pygame.time.wait(500)
-        pygame.quit()
-
-
-class FallingShape:
-    def __init__(self):
-        self.shape, self.color = Shapes.new_piece()
-        self.x = random.randint(0, COLUMNS - len(self.shape[0]))
-        self.y = random.randint(-10, -1)
-
-    def move(self):
-        self.y += 1
-
-    def draw(self):
-        for i, row in enumerate(self.shape):
-            for j, cell in enumerate(row):
-                if cell:
-                    rect = pygame.Rect((self.x + j) * BLOCK_SIZE, (self.y + i) * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE)
-                    pygame.draw.rect(screen, self.color, rect)
-                    pygame.draw.rect(screen, Colors.BLACK, rect, 1)  # square outline
-
-
-falling_shapes = []
-falling_positions = set()
-
-
-def spawn_falling_shape():
-    attempts = 0
-    while attempts < 10:
-        shape = FallingShape()
-        shape_rects = []
-        can_spawn = True
-        for i, row in enumerate(shape.shape):
-            for j, cell in enumerate(row):
-                if cell:
-                    pos = (shape.x + j, shape.y + i)
-                    if pos in falling_positions:
-                        can_spawn = False
-                        break
-                    shape_rects.append(pos)
-        if can_spawn:
-            for pos in shape_rects:
-                falling_positions.add(pos)
-            falling_shapes.append(shape)
-            break
-        attempts += 1
-
-
-def update_falling_shapes():
-    global falling_shapes, falling_positions
-    new_shapes = []
-    new_positions = set()
-    for shape in falling_shapes:
-        shape.move()
-        if shape.y + len(shape.shape) < ROWS:
-            new_shapes.append(shape)
-            for i, row in enumerate(shape.shape):
-                for j, cell in enumerate(row):
-                    if cell:
-                        new_positions.add((shape.x + j, shape.y + i))
-    falling_shapes = new_shapes
-    falling_positions = new_positions
-
-
-def draw_grid():
-    for x in range(0, SCREEN_WIDTH, BLOCK_SIZE):
-        pygame.draw.line(screen, Colors.GRAY, (x, 0), (x, SCREEN_HEIGHT))
-    for y in range(0, SCREEN_HEIGHT, BLOCK_SIZE):
-        pygame.draw.line(screen, Colors.GRAY, (0, y), (SCREEN_WIDTH, y))
-
-
-def draw_text_center(text, size, color, y_offset=0):
-    font = pygame.font.SysFont("comicsans", size, bold=True)
-    label = font.render(text, True, color)
-    screen.blit(label,
-                (SCREEN_WIDTH // 2 - label.get_width() // 2, SCREEN_HEIGHT // 2 - label.get_height() // 2 + y_offset))
-
-
-# Add this new class for the Game Over screen
 class GameOverScreen:
     def __init__(self, score, high_score):
         self.score = score
         self.high_score = high_score
-        self.font_large = pygame.font.Font(None, 72)
-        self.font_medium = pygame.font.Font(None, 48)
-        self.font_small = pygame.font.Font(None, 36)
+        self.title_font = pygame.font.Font(None, 60)
+        self.option_font = pygame.font.Font(None, 30)
+        self.small_font = pygame.font.Font(None, 24)
         self.selected_option = 0  # 0 for view high scores, 1 for restart
         self.new_high_score = score > high_score.high_score
+        self.animation_offset = 0
+        self.last_animation_time = time.time()
+        self.options = ["VIEW HIGH SCORES", "PLAY AGAIN", "MAIN MENU"]
 
-    def draw(self, screen):
-        # Dark semi-transparent background
-        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 200))
-        screen.blit(overlay, (0, 0))
+    def update_animation(self):
+        current_time = time.time()
+        if current_time - self.last_animation_time > 0.05:
+            self.animation_offset = (self.animation_offset + 1) % BLOCK_SIZE
+            self.last_animation_time = current_time
 
-        # Game Over text
-        game_over_text = self.font_large.render("GAME OVER", True, Colors.RED)
-        screen.blit(game_over_text, (SCREEN_WIDTH // 2 - game_over_text.get_width() // 2, 100))
+    def draw_title(self, screen):
+        # Draw glowing title effect
+        for i in range(3, 0, -1):
+            glow_color = (
+                min(255, Colors.RED[0] + i * 30),
+                min(255, Colors.RED[1] + i * 30),
+                min(255, Colors.RED[2] + i * 30)
+            )
+            glow_text = self.title_font.render("GAME OVER", True, glow_color)
+            screen.blit(glow_text, (SCREEN_WIDTH // 2 - glow_text.get_width() // 2, 30 + i))
 
+        # Main title
+        title = self.title_font.render("GAME OVER", True, Colors.RED)
+        screen.blit(title, (SCREEN_WIDTH // 2 - title.get_width() // 2, 30))
+
+        # Decorative lines
+        pygame.draw.line(
+            screen, Colors.CYAN,
+            (SCREEN_WIDTH // 2 - title.get_width() // 2 - 20, 80),
+            (SCREEN_WIDTH // 2 + title.get_width() // 2 + 20, 80),
+            3
+        )
+
+    def draw_score_info(self, screen):
         # Score display
-        score_text = self.font_medium.render(f"Your Score: {self.score}", True, Colors.WHITE)
-        screen.blit(score_text, (SCREEN_WIDTH // 2 - score_text.get_width() // 2, 200))
+        score_text = self.option_font.render(f"YOUR SCORE: {self.score}", True, Colors.WHITE)
+        screen.blit(score_text, (SCREEN_WIDTH // 2 - score_text.get_width() // 2, 120))
 
         # High score indication if applicable
         if self.new_high_score:
-            new_high_text = self.font_small.render("NEW HIGH SCORE!", True, Colors.YELLOW)
-            screen.blit(new_high_text, (SCREEN_WIDTH // 2 - new_high_text.get_width() // 2, 250))
+            new_high_text = self.small_font.render("NEW HIGH SCORE!", True, Colors.YELLOW)
+            screen.blit(new_high_text, (SCREEN_WIDTH // 2 - new_high_text.get_width() // 2, 170))
 
-        # Options
-        view_text = "VIEW HIGH SCORES"
-        restart_text = "PLAY AGAIN"
+    def draw_options(self, screen):
+        # Draw black background boxes for each option first
+        for i, option in enumerate(self.options):
+            # Black semi-transparent background for each option
+            option_bg = pygame.Surface((220, 50), pygame.SRCALPHA)
+            option_bg.fill((0, 0, 0, 180))  # Semi-transparent black
+            screen.blit(option_bg, (SCREEN_WIDTH // 2 - 110, 220 + i * 60))
 
-        # Draw view high scores option
-        view_color = Colors.YELLOW if self.selected_option == 0 else Colors.WHITE
-        view_render = self.font_medium.render(view_text, True, view_color)
-        screen.blit(view_render, (SCREEN_WIDTH // 2 - view_render.get_width() // 2, 350))
+            if i == self.selected_option:
+                # Selected option effect - yellow border
+                pygame.draw.rect(
+                    screen, Colors.YELLOW,
+                    (SCREEN_WIDTH // 2 - 110, 220 + i * 60, 220, 50),
+                    2
+                )
+                # Glow effect
+                for j in range(3, 0, -1):
+                    glow_text = self.option_font.render(option, True, (
+                        min(255, Colors.YELLOW[0] + j * 30),
+                        min(255, Colors.YELLOW[1] + j * 30),
+                        min(255, Colors.YELLOW[2] + j * 30)
+                    ))
+                    screen.blit(glow_text, (
+                        SCREEN_WIDTH // 2 - glow_text.get_width() // 2,
+                        225 + i * 60 - j
+                    ))
 
-        # Draw restart option
-        restart_color = Colors.YELLOW if self.selected_option == 1 else Colors.WHITE
-        restart_render = self.font_medium.render(restart_text, True, restart_color)
-        screen.blit(restart_render, (SCREEN_WIDTH // 2 - restart_render.get_width() // 2, 420))
+            # Draw the option text
+            text_color = Colors.YELLOW if i == self.selected_option else Colors.WHITE
+            text = self.option_font.render(option, True, text_color)
+            screen.blit(text, (SCREEN_WIDTH // 2 - text.get_width() // 2, 225 + i * 60))
 
-        # Instructions
-        instructions = self.font_small.render("Use UP/DOWN to select, ENTER to confirm", True, Colors.GRAY)
-        screen.blit(instructions, (SCREEN_WIDTH // 2 - instructions.get_width() // 2, 500))
+    def draw(self, screen):
+        # Keep the game board visible in the background
+        screen.fill(Colors.BLACK)
+        self.update_animation()
+        self.draw_title(screen)
+        self.draw_score_info(screen)
+        self.draw_options(screen)
+
+        # Draw instructions
+        controls = [
+            "CONTROLS:",
+            "Key_UP, Key_DOWN - Navigate",
+            "Key_LEFT, Key_RIGHT - Move",
+            "ENTER - Select",
+            "ESC - Back"
+        ]
+        for i, line in enumerate(controls):
+            color = Colors.CYAN if i == 0 else Colors.WHITE
+            text = self.small_font.render(line, True, color)
+            screen.blit(text, (20, SCREEN_HEIGHT - 100 + i * 20))
 
     def handle_input(self):
         for event in pygame.event.get():
@@ -600,20 +531,21 @@ class GameOverScreen:
                 return "quit"
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_DOWN:
-                    self.selected_option = (self.selected_option + 1) % 2
+                    self.selected_option = (self.selected_option + 1) % len(self.options)
                 elif event.key == pygame.K_UP:
-                    self.selected_option = (self.selected_option - 1) % 2
+                    self.selected_option = (self.selected_option - 1) % len(self.options)
                 elif event.key == pygame.K_RETURN:
-                    if self.selected_option == 0:
+                    if self.selected_option == 0:  # View High Scores
                         return "view_scores"
-                    else:
+                    elif self.selected_option == 1:  # Play Again
                         return "restart"
+                    elif self.selected_option == 2:  # Main Menu
+                        return "menu"
                 elif event.key == pygame.K_ESCAPE:
                     return "menu"
         return "game_over"
 
 
-# Modify the Game class's run method to use the new GameOverScreen
 class Game:
     def __init__(self):
         self.game_field = GameField()
@@ -669,14 +601,82 @@ class Game:
                 return "menu"
 
             screen.fill(Colors.BLACK)
+            # Redraw the game board in the background
+            draw_grid()
+            self.game_field.draw()
+            self.tetris.draw()
+            # Then draw the game over screen
             game_over_screen.draw(screen)
             pygame.display.flip()
             self.clock.tick(60)
 
     def show_high_scores(self):
-        # Create a simple high score display screen
+        # Create a high score display screen matching the menu style
         clock = pygame.time.Clock()
         showing_scores = True
+
+        # Create a temporary menu-like object for consistent styling
+        class TempMenu:
+            def __init__(self, high_score, current_score):
+                self.high_score = high_score
+                self.current_score = current_score
+                self.title_font = pygame.font.Font(None, 60)
+                self.score_font = pygame.font.Font(None, 36)
+                self.small_font = pygame.font.Font(None, 24)
+                self.animation_offset = 0
+                self.last_animation_time = time.time()
+
+            def update_animation(self):
+                current_time = time.time()
+                if current_time - self.last_animation_time > 0.05:
+                    self.animation_offset = (self.animation_offset + 1) % BLOCK_SIZE
+                    self.last_animation_time = current_time
+
+            def draw_background(self, screen):
+                # Draw grid lines
+                for x in range(0, SCREEN_WIDTH, BLOCK_SIZE):
+                    pygame.draw.line(
+                        screen, Colors.DARK_PURPLE,
+                        (x + self.animation_offset, 0),
+                        (x + self.animation_offset, SCREEN_HEIGHT),
+                        1
+                    )
+                for y in range(0, SCREEN_HEIGHT, BLOCK_SIZE):
+                    pygame.draw.line(
+                        screen, Colors.DARK_PURPLE,
+                        (0, y + self.animation_offset),
+                        (SCREEN_WIDTH, y + self.animation_offset),
+                        1
+                    )
+
+            def draw(self, screen):
+                self.update_animation()
+
+                # Dark semi-transparent background
+                overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+                overlay.fill((0, 0, 0, 200))
+                screen.blit(overlay, (0, 0))
+
+                self.draw_background(screen)
+
+                # Score display box
+                score_bg = pygame.Surface((250, 120), pygame.SRCALPHA)
+                score_bg.fill((0, 0, 0, 180))
+                screen.blit(score_bg, (SCREEN_WIDTH // 2 - 125, 150))
+
+                # Current score
+                current_text = self.score_font.render(f"Your Score: {self.current_score}", True, Colors.WHITE)
+                screen.blit(current_text, (SCREEN_WIDTH // 2 - current_text.get_width() // 2, 170))
+
+                # High score
+                high_text = self.score_font.render(f"High Score: {self.high_score}", True, Colors.CYAN)
+                screen.blit(high_text, (SCREEN_WIDTH // 2 - high_text.get_width() // 2, 220))
+
+                # Instructions
+                instructions = self.small_font.render("Press ENTER or ESC to continue", True, Colors.WHITE)
+                screen.blit(instructions, (SCREEN_WIDTH // 2 - instructions.get_width() // 2, 350))
+
+        temp_menu = TempMenu(self.high_score.high_score, self.score.score)
 
         while showing_scores:
             for event in pygame.event.get():
@@ -687,31 +687,19 @@ class Game:
                     if event.key in (pygame.K_RETURN, pygame.K_ESCAPE):
                         showing_scores = False
 
-            # Draw the high scores screen
+            # Redraw the game board in the background
             screen.fill(Colors.BLACK)
+            draw_grid()
+            self.game_field.draw()
+            self.tetris.draw()
 
-            # Title
-            font_large = pygame.font.Font(None, 72)
-            title = font_large.render("HIGH SCORES", True, Colors.YELLOW)
-            screen.blit(title, (SCREEN_WIDTH // 2 - title.get_width() // 2, 50))
-
-            # Current score
-            font_medium = pygame.font.Font(None, 48)
-            current_score = font_medium.render(f"Your Score: {self.score.score}", True, Colors.WHITE)
-            screen.blit(current_score, (SCREEN_WIDTH // 2 - current_score.get_width() // 2, 150))
-
-            # High score
-            high_score = font_medium.render(f"High Score: {self.high_score.high_score}", True, Colors.CYAN)
-            screen.blit(high_score, (SCREEN_WIDTH // 2 - high_score.get_width() // 2, 220))
-
-            # Instructions
-            font_small = pygame.font.Font(None, 36)
-            instructions = font_small.render("Press ENTER or ESC to continue", True, Colors.GRAY)
-            screen.blit(instructions, (SCREEN_WIDTH // 2 - instructions.get_width() // 2, 350))
+            # Draw the high scores overlay
+            temp_menu.draw(screen)
 
             pygame.display.flip()
             clock.tick(60)
- 
+
+
 # Modify the main function to handle the restart option
 def main():
     pygame.init()
