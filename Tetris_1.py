@@ -185,7 +185,7 @@ class Tetris:
 
 class Score:
     def __init__(self):
-        self.score = 0
+        self.score = 2990
         self.streak = 0
 
     def add_placement(self):
@@ -228,6 +228,7 @@ class HighScore:
         font = pygame.font.Font(None, 40)
         high_score_text = font.render(f"High Score: {self.high_score}", True, Colors.WHITE)
         screen.blit(high_score_text, (10, 60))
+
 
 class Menu:
     def __init__(self):
@@ -517,10 +518,40 @@ class Game:
         self.high_score = HighScore()
         self.tetris = Tetris(self.game_field, self.score)
         self.clock = pygame.time.Clock()
+        self.base_speed = 0.5  # Initial delay in seconds between automatic drops
+        self.current_speed = self.base_speed
+        self.last_drop_time = time.time()
+        self.speed_increase_thresholds = [1000, 3000]  # Initial thresholds
+        self.next_threshold_index = 0
+
+    def update_speed(self):
+        """Update game speed based on score thresholds"""
+        if self.next_threshold_index < len(self.speed_increase_thresholds):
+            next_threshold = self.speed_increase_thresholds[self.next_threshold_index]
+            if self.score.score >= next_threshold:
+                # Increase speed by reducing the delay (minimum of 0.1 seconds)
+                self.current_speed = max(0.1, self.current_speed * 0.7)  # 30% faster each time
+                self.next_threshold_index += 1
+
+                # Calculate next threshold (1000, 3000, 6000, 10000, 15000, etc.)
+                if self.next_threshold_index >= len(self.speed_increase_thresholds):
+                    last_threshold = self.speed_increase_thresholds[-1]
+                    increment = 2000 + (self.next_threshold_index - 2) * 1000
+                    next_threshold = last_threshold + increment
+                    self.speed_increase_thresholds.append(next_threshold)
 
     def run(self):
         while not self.tetris.game_over:
-            self.clock.tick(5)
+            current_time = time.time()
+            self.clock.tick(60)  # Keep a consistent frame rate
+
+            # Handle automatic dropping based on current speed
+            if current_time - self.last_drop_time > self.current_speed:
+                self.tetris.move_down()
+                self.last_drop_time = current_time
+
+            self.update_speed()  # Check if we need to increase speed
+
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.tetris.game_over = True
@@ -535,8 +566,6 @@ class Game:
                         self.tetris.rotate_piece()
                     if event.key == pygame.K_SPACE:
                         self.tetris.drop()
-
-            self.tetris.move_down()
 
             screen.fill(Colors.BLACK)
             draw_grid()
@@ -663,6 +692,7 @@ class Game:
             pygame.display.flip()
             clock.tick(60)
 
+
 # Modify the main function to handle the restart option
 def main():
     pygame.init()
@@ -683,6 +713,7 @@ def main():
         elif menu_result == "quit":
             pygame.quit()
             sys.exit()
+
 
 if __name__ == "__main__":
     main()
