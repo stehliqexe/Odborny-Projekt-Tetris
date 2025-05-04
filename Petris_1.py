@@ -286,6 +286,7 @@ class HighScore:
             self.high_score = current_score
             with open("highscore.txt", "w") as f:
                 f.write(str(self.high_score))
+        return self.high_score
 
     def draw(self):
         # Draw high score at the bottom of the side panel
@@ -464,7 +465,8 @@ class GameOverScreen:
         self.option_font = pygame.font.Font(None, 30)
         self.small_font = pygame.font.Font(None, 24)
         self.selected_option = 0  # 0 for view high scores, 1 for restart
-        self.new_high_score = score > high_score.high_score
+        current_high_score = high_score.save_high_score(score)
+        self.new_high_score = score >= current_high_score
         self.animation_offset = 0
         self.last_animation_time = time.time()
         self.options = ["VIEW HIGH SCORES", "PLAY AGAIN", "MAIN MENU"]
@@ -495,7 +497,7 @@ class GameOverScreen:
 
         # High score indication if applicable
         if self.new_high_score:
-            new_high_text = self.small_font.render("NEW HIGH SCORE!", True, Colors.YELLOW)
+            new_high_text = self.small_font.render("!!! NEW HIGH SCORE !!!", True, Colors.YELLOW)
             screen.blit(new_high_text, (SCREEN_WIDTH // 2 - new_high_text.get_width() // 2, 170))
 
     def draw_options(self, screen):
@@ -770,6 +772,4 @@ def main():
             pygame.quit()
             sys.exit()
 
-
-if __name__ == "__main__":
-    main()
+main()
